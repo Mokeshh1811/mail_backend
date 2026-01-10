@@ -1,6 +1,5 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from email.message import EmailMessage
 import smtplib
 import ssl
@@ -14,30 +13,14 @@ GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 PORT = int(os.getenv("PORT", 3003))
 
-app = FastAPI()
-
-# CORS Middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Request Model
-class EmailRequest(BaseModel):
-    name: str
-    email: EmailStr
-    service: str
-    message: str
-    organization: str | None = None
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
 
-def send_email(data: EmailRequest):
+def send_email(data):
     msg = EmailMessage()
     msg["From"] = GMAIL_USER
-    msg["To"] = data.email
+    msg["To"] = data["email"]
     msg["Subject"] = "Thank you for contacting Tempest!"
 
     html_content = f"""
@@ -93,16 +76,16 @@ def send_email(data: EmailRequest):
         </div>
 
         <div class="content">
-            <p>Dear <strong>{data.name}</strong>,</p>
+            <p>Dear <strong>{data["name"]}</strong>,</p>
 
             <p>Thank you for reaching out to <span class="highlight">Tempest</span>! 
-            We've received your inquiry about <strong>{data.service}</strong>.</p>
+            We've received your inquiry about <strong>{data["service"]}</strong>.</p>
 
-            {f"<p><strong>Organization:</strong> {data.organization}</p>" if data.organization else ""}
+            {f"<p><strong>Organization:</strong> {data.get('organization')}</p>" if data.get("organization") else ""}
 
             <div class="message-box">
                 <strong>Your Message:</strong><br>
-                {data.message}
+                {data["message"]}
             </div>
 
             <p>Our team will review your request and get back to you within 24 hours.</p>
@@ -113,7 +96,7 @@ def send_email(data: EmailRequest):
         </div>
 
         <div class="footer">
-            <p>This email was sent to {data.email} | © 2025 Tempest.</p>
+            <p>This email was sent to {data["email"]} | © 2025 Tempest.</p>
         </div>
     </body>
     </html>
@@ -122,28 +105,28 @@ def send_email(data: EmailRequest):
     msg.add_alternative(html_content, subtype="html")
 
     context = ssl.create_default_context()
-
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         server.send_message(msg)
 
 
-# API Endpoint
-@app.post("/api/send-email")
-async def send_email_endpoint(data: EmailRequest):
+@app.route("/api/send-email", methods=["POST"])
+def send_email_api():
     try:
+        data = request.get_json()
+
+        required_fields = ["name", "email", "service", "message"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"{field} is required"}), 400
+
         send_email(data)
-        return {"message": "Email sent successfully!"}
+        return jsonify({"message": "Email sent successfully!"}), 200
+
     except Exception as e:
         print("Error sending email:", e)
-        raise HTTPException(status_code=500, detail="Failed to send email")
+        return jsonify({"error": "Failed to send email"}), 500
+
 
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=PORT,
-        reload=True
-    )
+    app.run(host="0.0.0.0", port=PORT, debug=True)
