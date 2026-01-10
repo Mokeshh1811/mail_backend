@@ -9,9 +9,12 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-GMAIL_USER = os.getenv("GMAIL_USER")
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
-PORT = int(os.getenv("PORT", 3003))
+# Gmail SMTP Configuration
+GMAIL_USER="mokesh1811@gmail.com"
+GMAIL_APP_PASSWORD="tpxm zyue najb jidh"
+
+# Server Port (optional, defaults to 3001)
+PORT=3000
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
